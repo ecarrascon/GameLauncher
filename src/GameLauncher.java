@@ -1,4 +1,5 @@
 import javax.swing.*;
+import javax.swing.filechooser.FileSystemView;
 import java.io.*;
 import java.nio.file.*;
 import java.util.*;
@@ -30,7 +31,7 @@ public class GameLauncher {
     }
 
     private ArrayList<Game> getGamesFromFolder(String folderPath) {
-        // Scan the folder and create Game objects for each executable (Execpt some words like unins or unity)
+        //Scan the folder and create Game objects for each executable (Execpt some words like unins or unity)
         ArrayList<Game> games = new ArrayList<>();
         try {
             Files.walk(Paths.get(folderPath), 2)
@@ -51,12 +52,21 @@ public class GameLauncher {
 
 
     private void displayGames(ArrayList<Game> games) {
+        FileSystemView fileSystemView = FileSystemView.getFileSystemView();
+
         for (Game game : games) {
-            JButton gameButton = new JButton(game.getName());
+            //Get the game's icon
+            Icon gameIcon = fileSystemView.getSystemIcon(new File(game.getPath()));
+
+            //Create a button with the game's .exe icon and name
+            JButton gameButton = new JButton(game.getName(), gameIcon);
             gameButton.addActionListener(e -> launchGame(game));
+            gameButton.setHorizontalTextPosition(JButton.CENTER);
+            gameButton.setVerticalTextPosition(JButton.BOTTOM);
             mainPanel.add(gameButton);
         }
     }
+
 
     private void launchGame(Game game) {
         try {
