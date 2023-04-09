@@ -5,6 +5,9 @@ import java.nio.file.*;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class GameLauncher {
     private JFrame frame;
@@ -65,8 +68,6 @@ public class GameLauncher {
             //Get the game's icon
             Icon gameIcon = fileSystemView.getSystemIcon(new File(game.getPath()));
 
-
-
             //Create a button with the game's .exe icon and name
             JButton gameButton = new JButton(game.getName(), gameIcon);
             gameButton.addActionListener(e -> launchGame(game));
@@ -74,9 +75,11 @@ public class GameLauncher {
             gameButton.setVerticalTextPosition(JButton.BOTTOM);
             mainPanel.add(gameButton);
 
-            //Display the number of hours played
-            String hoursPlayed = String.format("%.2f", gameData.getOrDefault(game.getPath(), 0L) / 60.0);
-            gameButton.setText(game.getName() + " - " + hoursPlayed + " hours");
+            //Display the number of hours and minutes played
+            long minutesPlayed = gameData.getOrDefault(game.getPath(), 0L);
+            long hoursPlayed = minutesPlayed / 60;
+            long remainingMinutes = minutesPlayed % 60;
+            gameButton.setText(game.getName() + " - " + hoursPlayed + "h " + remainingMinutes + "m");
         }
     }
 
@@ -114,19 +117,34 @@ public class GameLauncher {
         try {
             Process process = new ProcessBuilder(game.getPath()).start();
             LocalDateTime startTime = LocalDateTime.now();
-            process.waitFor();
-            LocalDateTime endTime = LocalDateTime.now();
+            final boolean[] isRunning = {true};
 
+            ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+            executor.scheduleAtFixedRate(() -> {
+                try {
+                    process.exitValue();
+                    isRunning[0] = false;
+                    executor.shutdown();
+                } catch (IllegalThreadStateException e) {
+                    //Game still running
+                }
+            }, 0, 1, TimeUnit.SECONDS);
+
+            while (isRunning[0]) {
+                Thread.sleep(1000);
+            }
+
+            LocalDateTime endTime = LocalDateTime.now();
             Duration duration = Duration.between(startTime, endTime);
-            long hoursPlayed = gameData.getOrDefault(game.getPath(), 0L);
-            hoursPlayed += duration.toMillis() / (1000 * 60 * 60);
-            gameData.put(game.getPath(), hoursPlayed);
+            long minutesPlayed = gameData.getOrDefault(game.getPath(), 0L) + duration.toMinutes();
+            gameData.put(game.getPath(), minutesPlayed);
 
             saveGameData(DATA_FILE, gameData);
         } catch (IOException | InterruptedException e) {
             e.printStackTrace();
         }
     }
+
 
 }
 
