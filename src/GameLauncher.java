@@ -30,17 +30,25 @@ public class GameLauncher {
     }
 
     private ArrayList<Game> getGamesFromFolder(String folderPath) {
+        // Scan the folder and create Game objects for each executable (Execpt some words like unins or unity)
         ArrayList<Game> games = new ArrayList<>();
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(Paths.get(folderPath), "*.exe")) {
-            for (Path entry : stream) {
-                Game game = new Game(entry.getFileName().toString(), entry.toAbsolutePath().toString());
-                games.add(game);
-            }
+        try {
+            Files.walk(Paths.get(folderPath), 2)
+                    .filter(path -> path.toString().endsWith(".exe"))
+                    .filter(path -> {
+                        String filename = path.getFileName().toString().toLowerCase();
+                        return !filename.startsWith("unins") && !filename.startsWith("unity");
+                    })
+                    .forEach(path -> {
+                        Game game = new Game(path.getFileName().toString(), path.toAbsolutePath().toString());
+                        games.add(game);
+                    });
         } catch (IOException e) {
             e.printStackTrace();
         }
         return games;
     }
+
 
     private void displayGames(ArrayList<Game> games) {
         for (Game game : games) {
@@ -53,7 +61,6 @@ public class GameLauncher {
     private void launchGame(Game game) {
         try {
             Process process = new ProcessBuilder(game.getPath()).start();
-            // Update hours played, save to storage (e.g. file, database) if needed
         } catch (IOException e) {
             e.printStackTrace();
         }
