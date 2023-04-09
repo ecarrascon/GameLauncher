@@ -2,6 +2,8 @@ import javax.swing.*;
 import javax.swing.filechooser.FileSystemView;
 import java.io.*;
 import java.nio.file.*;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.*;
 
 public class GameLauncher {
@@ -9,6 +11,10 @@ public class GameLauncher {
     private JPanel mainPanel;
     private JScrollPane scrollPane;
     private ArrayList<Game> games;
+
+    private static final String DATA_FILE = "game_data.txt";
+
+    private Map<String, Long> gameData;
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> new GameLauncher().createAndShowGUI());
@@ -23,6 +29,7 @@ public class GameLauncher {
         scrollPane = new JScrollPane(mainPanel);
 
         games = getGamesFromFolder("C:\\Games");
+        gameData = loadGameData(DATA_FILE);
         displayGames(games);
 
         frame.add(scrollPane);
@@ -58,23 +65,69 @@ public class GameLauncher {
             //Get the game's icon
             Icon gameIcon = fileSystemView.getSystemIcon(new File(game.getPath()));
 
+
+
             //Create a button with the game's .exe icon and name
             JButton gameButton = new JButton(game.getName(), gameIcon);
             gameButton.addActionListener(e -> launchGame(game));
             gameButton.setHorizontalTextPosition(JButton.CENTER);
             gameButton.setVerticalTextPosition(JButton.BOTTOM);
             mainPanel.add(gameButton);
+
+            //Display the number of hours played
+            String hoursPlayed = String.format("%.2f", gameData.getOrDefault(game.getPath(), 0L) / 60.0);
+            gameButton.setText(game.getName() + " - " + hoursPlayed + " hours");
         }
     }
 
 
-    private void launchGame(Game game) {
-        try {
-            Process process = new ProcessBuilder(game.getPath()).start();
+    private Map<String, Long> loadGameData(String filename) {
+        Map<String, Long> gameData = new HashMap<>();
+        try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String[] parts = line.split(";");
+                String gamePath = parts[0].trim();
+                long hoursPlayed = Long.parseLong(parts[1].trim());
+                gameData.put(gamePath, hoursPlayed);
+            }
+        } catch (FileNotFoundException e) {
+            System.out.println("Data file not found, initializing an empty database.");
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return gameData;
+    }
+
+    private void saveGameData(String filename, Map<String, Long> gameData) {
+        try (BufferedWriter writer = new BufferedWriter(new FileWriter(filename))) {
+            for (Map.Entry<String, Long> entry : gameData.entrySet()) {
+                writer.write(entry.getKey() + ";" + entry.getValue());
+                writer.newLine();
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
+
+    private void launchGame(Game game) {
+        try {
+            Process process = new ProcessBuilder(game.getPath()).start();
+            LocalDateTime startTime = LocalDateTime.now();
+            process.waitFor();
+            LocalDateTime endTime = LocalDateTime.now();
+
+            Duration duration = Duration.between(startTime, endTime);
+            long hoursPlayed = gameData.getOrDefault(game.getPath(), 0L);
+            hoursPlayed += duration.toMillis() / (1000 * 60 * 60);
+            gameData.put(game.getPath(), hoursPlayed);
+
+            saveGameData(DATA_FILE, gameData);
+        } catch (IOException | InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
 }
 
 class Game {
